@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Toobey 万能二维码生成器 - 网址、文字、图片、音频、视频、文档一键生成二维码，扫码即达">
+<title>Toobey - 万能二维码生成器</title>
+<style>
+:root{
+  --bg:#eef5fd; --panel:#ffffff; --panel2:#f4f9ff; --border:#e1eaf6; --border2:#c8d8ee;
+  --accent:#2f9cf0; --accent2:#2fc6b8; --accent-soft:rgba(47,156,240,.08);
+  --ok:#10b981; --err:#ef4444; --warn:#f59e0b;
+  --text:#26354f; --muted:#6b7f9c; --shadow:0 2px 14px rgba(37,99,235,.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  background:
+    radial-gradient(900px 520px at 88% -12%, rgba(47,198,184,.14), transparent 60%),
+    radial-gradient(820px 520px at -8% 18%, rgba(47,156,240,.12), transparent 60%),
+    linear-gradient(165deg,#eef6ff 0%,#f2fbfa 55%,#eef7ff 100%);
+  background-attachment:fixed;
+  color:var(--text); min-height:100vh; padding:0 0 40px;
+}
+.wrap{max-width:1060px;margin:0 auto;padding:0 18px}
+
+/* ---------- 顶栏 ---------- */
+.topbar{text-align:center;padding:36px 16px 22px}
+.topbar h1{font-size:clamp(26px,4.6vw,40px);font-weight:800;letter-spacing:1px;
+  background:linear-gradient(90deg,#0e8fd8,#2f9cf0 45%,#2fc6b8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.topbar .sub{color:var(--muted);margin-top:10px;font-size:14.5px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+.badge{font-size:12px;color:#3d6da8;background:rgba(47,156,240,.08);border:1px solid rgba(47,156,240,.22);padding:4px 11px;border-radius:999px}
+
+/* ---------- 模式卡片 ---------- */
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin:6px 0 20px}
+.mcard{
+  background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px 14px 14px;
+  cursor:pointer;text-align:center;transition:all .18s ease;position:relative;user-select:none;
+  box-shadow:var(--shadow);
+}
+.mcard:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 6px 20px rgba(37,99,235,.10)}
+.mcard.active{border-color:var(--accent);background:linear-gradient(180deg,rgba(47,156,240,.07),rgba(47,198,184,.05)),#fff;box-shadow:0 6px 22px rgba(47,156,240,.16)}
+.mcard .mi{font-size:30px;line-height:1.2}
+.mcard .mt{font-weight:700;font-size:15px;margin-top:8px}
+.mcard .md{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+.mcard .chk{position:absolute;top:10px;right:12px;color:var(--accent);font-size:16px;opacity:0;transition:opacity .15s}
+.mcard.active .chk{opacity:1}
+
+/* ---------- 工作区 ---------- */
+.workspace{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:var(--shadow)}
+.panel-title{font-weight:700;font-size:16px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel-title .tag{font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid rgba(47,156,240,.28);padding:2px 8px;border-radius:999px}
+
+.mode-box .btn-row{display:flex;gap:10px;align-items:center;margin-top:12px}
+input[type=url],textarea,select{
+  width:100%;background:var(--panel2);border:1px solid var(--border2);color:var(--text);
+  border-radius:12px;padding:12px 14px;font-size:14.5px;outline:none;transition:border .15s;font-family:inherit;
+}
+input[type=url]:focus,textarea:focus,select:focus{border-color:var(--accent)}
+textarea{resize:vertical;line-height:1.6}
+select{width:auto;cursor:pointer}
+.count{color:var(--muted);font-size:12px;margin-left:auto}
+
+/* 拖放区 */
+.dropzone{
+  border:2px dashed var(--border2);border-radius:14px;padding:34px 16px;text-align:center;cursor:pointer;
+  transition:all .18s;background:rgba(244,249,255,.6);
+}
+.dropzone:hover,.dropzone.drag{border-color:var(--accent);background:rgba(47,156,240,.05)}
+.dz-icon{font-size:40px}
+.dz-text{font-weight:600;margin-top:10px;font-size:15px}
+.dz-hint{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.6}
+
+/* 文件列表（批量） */
+.files-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:220px;overflow-y:auto;padding-right:4px}
+.fitem{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:8px 12px;transition:border .15s}
+.fitem .fi-icon{font-size:20px;flex-shrink:0}
+.fitem .fi-name{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.fitem .fi-size{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.fitem .fi-status{font-size:12px;color:var(--muted);white-space:nowrap}
+.fitem.uploading{border-color:rgba(47,156,240,.5)}
+.fitem.uploading .fi-status{color:var(--accent)}
+.fitem.ok{border-color:rgba(16,185,129,.45)}
+.fitem.ok .fi-status{color:var(--ok)}
+.fitem.fail{border-color:rgba(239,68,68,.5)}
+.fitem.fail .fi-status{color:var(--err)}
+.fi-retry{font-size:11.5px;padding:4px 10px;border-radius:8px;border:1px solid var(--border2);background:#fff;color:var(--accent);cursor:pointer;white-space:nowrap}
+.fi-retry:hover{border-color:var(--accent)}
+
+/* 批量结果网格 */
+.qr-results{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
+.qr-results-title{font-weight:700;font-size:14px;margin-bottom:12px;color:var(--accent)}
+.qr-results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.qritem{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px;cursor:pointer;transition:border .15s;text-align:center}
+.qritem:hover{border-color:var(--accent)}
+.qritem .qri-img{background:#fff;border-radius:8px;padding:5px;width:100%;max-width:120px;height:auto;margin:0 auto;display:block;image-rendering:pixelated;border:1px solid #eef3fa}
+.qritem .qri-name{font-size:11.5px;font-weight:600;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.qritem .qri-btns{display:flex;gap:5px;margin-top:8px}
+.qritem .qri-btns button{flex:1;font-size:11px;padding:5px 0;border-radius:7px;border:1px solid var(--border2);background:#fff;color:var(--muted);cursor:pointer}
+.qritem .qri-btns button:hover{color:var(--accent);border-color:var(--accent)}
+
+.ttl-row{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:13px;color:var(--muted)}
+.ttl-row select{margin-left:2px}
+
+.uploading{display:flex;align-items:center;gap:10px;margin-top:14px;color:var(--accent);font-size:13.5px;font-weight:600;flex-wrap:wrap}
+.spinner{width:16px;height:16px;border:2px solid rgba(47,156,240,.22);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.progress{flex:1 1 100%;height:6px;background:rgba(47,156,240,.12);border-radius:99px;overflow:hidden}
+#progressBar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width .25s ease}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 预览 */
+.preview-box{margin-top:14px;border-radius:12px;overflow:hidden;background:#f8fbff;border:1px solid var(--border)}
+.preview-box img,.preview-box video{display:block;width:100%;max-height:280px;object-fit:contain;background:#fff}
+.preview-box audio{width:100%;display:block}
+.preview-box .filecard{display:flex;align-items:center;gap:12px;padding:16px;background:var(--panel2)}
+.filecard .fc-icon{font-size:34px}
+.filecard .fc-name{font-weight:600;font-size:14px;word-break:break-all}
+.filecard .fc-meta{color:var(--muted);font-size:12px;margin-top:3px}
+
+/* 二维码输出 */
+.qr-stage{background:#fff;border:1px solid #e8eff9;border-radius:14px;padding:14px;display:flex;align-items:center;justify-content:center;min-height:280px;position:relative}
+.qr-placeholder{color:#9fb3cc;text-align:center;font-size:13px}
+.ph-icon{font-size:44px;margin-bottom:10px}
+#qrImg{max-width:100%;height:auto;border-radius:6px;image-rendering:pixelated}
+.qr-meta{margin-top:14px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.qr-label{font-weight:700;font-size:13.5px;word-break:break-all;line-height:1.5}
+.qr-url{color:var(--accent);font-size:12px;margin-top:5px;word-break:break-all;line-height:1.5}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.actions .btn:first-child{grid-column:1/-1}
+
+/* 按钮 */
+.btn{
+  border:1px solid var(--border2);background:#fff;color:var(--text);border-radius:12px;
+  padding:11px 14px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;
+}
+.btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:linear-gradient(135deg,#2f9cf0,#2fc6b8);border:none;color:#fff;box-shadow:0 4px 14px rgba(47,156,240,.28)}
+.btn.primary:hover:not(:disabled){color:#fff;box-shadow:0 6px 20px rgba(47,156,240,.38)}
+.btn.ghost{background:none;font-size:12.5px;padding:6px 12px;color:var(--muted)}
+.btn.ghost:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}
+
+/* ---------- 历史 ---------- */
+.history{margin-top:26px}
+.hist-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.hist-head h2{font-size:17px}
+.hist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.hitem{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;transition:border .15s;box-shadow:var(--shadow)}
+.hitem:hover{border-color:var(--accent)}
+.hitem .hqr{background:#fff;border-radius:8px;padding:6px;display:flex;justify-content:center;border:1px solid #eef3fa}
+.hitem .hqr img{width:84px;height:84px;image-rendering:pixelated}
+.hitem .hname{font-size:12.5px;font-weight:600;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hitem .htime{font-size:11px;color:var(--muted);margin-top:3px}
+.hitem .hbtns{display:flex;gap:6px;margin-top:8px}
+.hitem .hbtns button{flex:1;font-size:11.5px;padding:5px 0;border-radius:8px;border:1px solid var(--border2);background:#fff;color:var(--muted);cursor:pointer}
+.hitem .hbtns button:hover{color:var(--accent);border-color:var(--accent)}
+.empty{color:var(--muted);font-size:13px;padding:16px;border:1px dashed var(--border2);border-radius:12px;text-align:center}
+
+/* ---------- 底部 ---------- */
+footer{border-top:1px solid var(--border);margin-top:36px;padding-top:18px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.9}
+footer .svc{color:#94a6bf}
+
+/* ---------- Toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:30px;transform:translate(-50%,80px);opacity:0;z-index:999;
+  background:#ffffff;border:1px solid var(--border2);color:var(--text);padding:12px 20px;border-radius:12px;
+  font-size:13.5px;box-shadow:0 10px 30px rgba(37,99,235,.16);transition:all .25s ease;max-width:88vw;text-align:center;
+}
+.toast.show{transform:translate(-50%,0);opacity:1}
+.toast.ok{border-color:rgba(16,185,129,.45)}
+.toast.err{border-color:rgba(239,68,68,.55);color:#c02626}
+
+.hidden{display:none!important}
+
+@media (max-width:820px){
+  .workspace{grid-template-columns:1fr}
+  .modes{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:520px){
+  .modes{grid-template-columns:repeat(2,1fr)}
+  .topbar{padding:26px 12px 16px}
+  .panel{padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="topbar">
+  <h1>万能二维码生成器-Toobey</h1>
+  <p class="sub">网址 · 文字 · 图片 · 音频 · 视频 · 文档 —— 上传即得码，扫码即达</p>
+  <div class="badges">
+    <span class="badge">🇨🇳 国内可用</span>
+    <span class="badge">☁️ 云端存储 · 链接长期有效</span>
+    <span class="badge">🔒 免费 · 无需注册</span>
+  </div>
+</header>
+
+<main>
+  <!-- 模式选择 -->
+  <section class="modes" id="modes"></section>
+
+  <!-- 工作区 -->
+  <section class="workspace">
+    <div class="panel">
+      <div class="panel-title"><span id="panelTitle">网址链接</span><span class="tag" id="panelTag">无需上传</span></div>
+
+      <div id="urlBox" class="mode-box">
+        <input id="urlInput" type="url" placeholder="粘贴网址，例如 https://example.com" autocomplete="off" spellcheck="false">
+        <div class="btn-row"><button id="genUrlBtn" class="btn primary">生成二维码</button></div>
+      </div>
+
+      <div id="textBox" class="mode-box hidden">
+        <textarea id="textInput" rows="6" placeholder="输入文字内容，生成后扫码打开网页查看…" maxlength="10000"></textarea>
+        <div class="btn-row">
+          <button id="genTextBtn" class="btn primary">生成二维码</button>
+          <span class="count" id="textCount">0 / 1万字</span>
+        </div>
+      </div>
+
+      <div id="fileBox" class="mode-box hidden">
+        <div id="dropzone" class="dropzone">
+          <input type="file" id="fileInput" hidden multiple>
+          <div class="dz-inner">
+            <div class="dz-icon" id="dzIcon">📄</div>
+            <div class="dz-text">点击选择文件（可多选），或拖拽到此处</div>
+            <div class="dz-hint" id="dzHint"></div>
+          </div>
+        </div>
+        <div id="filesList" class="files-list hidden"></div>
+        <div class="ttl-row">
+          <span>链接有效期</span>
+          <select id="ttlSel">
+            <option value="0" selected>永久有效</option>
+            <option value="86400">1 天</option>
+            <option value="604800">7 天</option>
+            <option value="2592000">30 天</option>
+          </select>
+        </div>
+        <div id="uploading" class="uploading hidden">
+          <span class="spinner"></span>
+          <span id="uploadText">正在上传并生成二维码…</span>
+          <div class="progress"><div id="progressBar"></div></div>
+        </div>
+      </div>
+
+      <div id="previewBox" class="preview-box hidden"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">二维码<span class="tag">扫码即达</span></div>
+      <div class="qr-stage">
+        <div id="qrPlaceholder" class="qr-placeholder">
+          <div class="ph-icon">📱</div>
+          <div>二维码将在这里显示</div>
+        </div>
+        <img id="qrImg" alt="二维码" hidden>
+      </div>
+      <div id="qrMeta" class="qr-meta hidden">
+        <div class="qr-label" id="qrLabel"></div>
+        <div class="qr-url" id="qrUrl"></div>
+      </div>
+      <div class="actions">
+        <button id="dlBtn" class="btn primary" disabled>⬇️ 下载二维码 PNG</button>
+        <button id="copyBtn" class="btn" disabled>📋 复制链接</button>
+        <button id="openBtn" class="btn" disabled>↗️ 打开链接</button>
+      </div>
+      <div id="qrResults" class="qr-results hidden">
+        <div class="qr-results-title" id="qrResultsTitle"></div>
+        <div id="qrResultsGrid" class="qr-results-grid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 历史 -->
+  <section class="history">
+    <div class="hist-head"><h2>🕘 最近生成</h2><button id="clearHist" class="btn ghost">清空记录</button></div>
+    <div id="history" class="hist-grid"></div>
+  </section>
+</main>
+
+<footer>
+  <div>Toobey - 万能二维码生成器 v1.0</div>
+  <div class="svc">存储服务：Cloudflare Pages · KV 全球 CDN ｜ 二维码本地生成 · 内容不经过第三方 ｜ 单文件上限 24MB · 支持一次多选批量上传</div>
+</footer>
+
+</div>
+<div id="toast" class="toast"></div>
+<script src="qrcode.min.js"></script>
+<script>
+/* ============ Toobey 万能二维码生成器 ============ */
+'use strict';
+const MAX_FILE = 24 * 1024 * 1024;   // 单文件上限 24MB (KV 免费额度单值 25MiB 物理上限, 留余量)
+// API 路由: 在 Cloudflare 页面上走同源相对路径; 在 GitHub Pages 等静态托管上转发到 Cloudflare 后端(已开 CORS)
+const API_BASE = location.hostname === 'toobey-qrcode.pages.dev' ? '' : 'https://toobey-qrcode.pages.dev';
+const $ = s => document.querySelector(s);
+const HIST_KEY = 'toobey_qr_history_v1';
+const TTL_LABEL = { 0:'永久有效', 86400:'1天', 604800:'7天', 2592000:'30天' };
+
+const MODES = {
+  url:   { icon:'🔗', title:'网址链接', desc:'扫码直接打开网址', accept:null, hint:'支持 http/https 链接，粘贴后点击生成，无需上传' },
+  text:  { icon:'📝', title:'文字内容', desc:'扫码查看文字', accept:null, hint:'支持中文/英文/符号，最多 1 万字；生成后扫码打开网页查看' },
+  image: { icon:'🖼️', title:'图片', desc:'扫码查看原图', accept:'image/*', hint:'支持 JPG / PNG / GIF / WebP，≤24MB，也可直接粘贴截图' },
+  audio: { icon:'🎵', title:'音频', desc:'扫码在线播放', accept:'audio/*', hint:'支持 MP3 / WAV / M4A 等，≤24MB' },
+  video: { icon:'🎬', title:'视频', desc:'扫码在线播放', accept:'video/*', hint:'支持 MP4 / WebM / MOV 等，≤24MB，建议用短视频' },
+  file:  { icon:'📄', title:'文档文件', desc:'Word/Excel/PPT/PDF/ZIP', accept:'', hint:'支持 Word / Excel / PPT / PDF / ZIP 等任意文件，≤24MB' },
+};
+
+let mode = 'url';
+let lastResult = null;   // {url,label,name,size,type}
+let historyList = [];
+try { historyList = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch(e){ historyList = []; }
+
+/* ---------- 二维码生成 ---------- */
+function makeQR(text, cell, margin){
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  return qr.createDataURL(cell, margin);
+}
+
+/* ---------- Toast ---------- */
+let toastTimer = null;
+function toast(msg, ok){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (ok === false ? 'err' : 'ok');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = 'toast', 3000);
+}
+
+/* ---------- 模式切换 ---------- */
+function setMode(m){
+  mode = m;
+  const cfg = MODES[m];
+  document.querySelectorAll('.mcard').forEach(c => c.classList.toggle('active', c.dataset.mode === m));
+  $('#panelTitle').textContent = cfg.title;
+  $('#panelTag').textContent = (m === 'url' || m === 'text') ? '无需上传' : '上传文件';
+  $('#urlBox').classList.toggle('hidden', m !== 'url');
+  $('#textBox').classList.toggle('hidden', m !== 'text');
+  $('#fileBox').classList.toggle('hidden', m === 'url' || m === 'text');
+  $('#dzIcon').textContent = cfg.icon;
+  $('#dzHint').textContent = cfg.hint;
+  if (m !== 'url' && m !== 'text') $('#fileInput').accept = cfg.accept || '';
+  if (m === 'url') setTimeout(() => $('#urlInput').focus(), 50);
+  if (m === 'text') setTimeout(() => $('#textInput').focus(), 50);
+}
+
+/* ---------- URL / 文字 ---------- */
+function normUrl(u){
+  u = u.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(u)) u = 'https://' + u;
+  return u;
+}
+function genFromUrl(){
+  const raw = $('#urlInput').value.trim();
+  if (!raw) { toast('请先输入网址', false); return; }
+  const url = normUrl(raw);
+  if (!/^(https?|ftp):\/\/[^\s]+$/.test(url)) { toast('网址格式不正确，请检查后重试', false); return; }
+  const label = '网址 · ' + url;
+  lastResult = { url, label, name: url, type: 'url' };
+  showQR(url, label);
+  saveHistory({ mode:'url', label, url, name: url, type:'url' });
+  toast('✅ 二维码已生成');
+}
+
+/* 文字 -> 云端 HTML 展示页 -> 二维码(微信扫码可正常打开) */
+function escHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function buildTextPage(text){
+  const content = escHtml(text);
+  return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>文字内容</title><style>body{margin:0;background:radial-gradient(900px 500px at 85% -10%,rgba(34,211,238,.12),transparent 60%),radial-gradient(800px 500px at -10% 20%,rgba(129,140,248,.10),transparent 60%),#070b14;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;padding:20px;box-sizing:border-box}.card{max-width:760px;width:100%;background:#0e1526;border:1px solid #1d2a45;border-radius:18px;padding:30px;box-shadow:0 20px 60px rgba(0,0,0,.5)}.head{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#22d3ee;margin-bottom:18px;letter-spacing:1px}.content{font-size:16px;line-height:1.9;color:#e5ecf7;white-space:pre-wrap;word-break:break-word}.foot{margin-top:26px;padding-top:16px;border-top:1px solid #1d2a45;font-size:12px;color:#66718c;text-align:center}.foot b{color:#22d3ee}</style></head><body><main class="card"><div class="head">📝 文字内容</div><div class="content">' + content + '</div><div class="foot">由 <b>Toobey</b> - 万能二维码生成器生成</div></main></body></html>';
+}
+async function genFromText(){
+  const text = $('#textInput').value.trim();
+  if (!text) { toast('请先输入文字内容', false); return; }
+  if (text.length > 10000) { toast('文字过长（限 1 万字）', false); return; }
+  const html = buildTextPage(text);
+  const f = new File([html], '文字内容.html', { type:'text/html' });
+  const summary = text.length > 40 ? text.slice(0, 40) + '…' : text;
+  try{
+    await doUpload(f, '文字 · ' + summary);
+  }catch(e){ /* 错误已 toast */ }
+}
+
+/* ---------- 文件上传 ---------- */
+/* ---------- 批量文件选择与上传 ---------- */
+let pendingFiles = [];
+let resultsCache = [];
+let uploading = false;
+
+function pickFiles(list){
+  if (!list || !list.length) return;
+  if (uploading){ toast('正在上传中，请先等待完成', false); return; }
+  let arr = Array.from(list);
+  if (arr.length > 20){
+    toast('一次最多上传 20 个文件，已截取前 20 个', false);
+    arr = arr.slice(0, 20);
+  }
+  const accepted = [];
+  arr.forEach(f => {
+    if (f.size > MAX_FILE){ toast('已跳过 ' + f.name + '（超过 24MB）', false); return; }
+    if (mode === 'image' && !/^image\//.test(f.type)){ toast('已跳过 ' + f.name + '（不是图片）', false); return; }
+    if (mode === 'audio' && !/^audio\//.test(f.type)){ toast('已跳过 ' + f.name + '（不是音频）', false); return; }
+    if (mode === 'video' && !/^video\//.test(f.type)){ toast('已跳过 ' + f.name + '（不是视频）', false); return; }
+    accepted.push(f);
+  });
+  if (!accepted.length) return;
+  pendingFiles = accepted;
+  resultsCache = [];
+  $('#qrResults').classList.add('hidden');
+  $('#previewBox').classList.add('hidden');
+  $('#previewBox').innerHTML = '';
+  if (accepted.length === 1) showPreview(accepted[0]);
+  renderFilesList();
+  uploadAll();
+}
+
+function renderFilesList(){
+  const box = $('#filesList');
+  box.classList.remove('hidden');
+  box.innerHTML = '';
+  pendingFiles.forEach((f, i) => {
+    const el = document.createElement('div');
+    el.className = 'fitem waiting';
+    el.dataset.index = i;
+    el.innerHTML = '<span class="fi-icon">' + fileIcon(f) + '</span>' +
+      '<span class="fi-name"></span>' +
+      '<span class="fi-size">' + fmtSize(f.size) + '</span>' +
+      '<span class="fi-status">等待</span>';
+    el.querySelector('.fi-name').textContent = f.name;
+    box.appendChild(el);
+  });
+}
+
+function setItemStatus(i, status){
+  const items = document.querySelectorAll('#filesList .fitem');
+  if (!items[i]) return;
+  const el = items[i];
+  el.className = 'fitem ' + status;
+  const st = el.querySelector('.fi-status');
+  if (status === 'waiting') st.textContent = '等待';
+  else if (status === 'uploading') st.textContent = '上传中…';
+  else if (status === 'ok') st.textContent = '✓ 成功';
+  else if (status === 'fail'){
+    st.textContent = '✗ 失败';
+    if (!el.querySelector('.fi-retry')){
+      const b = document.createElement('button');
+      b.className = 'fi-retry'; b.textContent = '重试';
+      b.onclick = e => { e.stopPropagation(); retryItem(i); };
+      el.appendChild(b);
+    }
+  }
+}
+
+async function retryItem(i){
+  const f = pendingFiles[i];
+  setItemStatus(i, 'uploading');
+  try{
+    const r = await doUpload(f, MODES[mode].title + ' · ' + f.name, { index: i, total: pendingFiles.length, keepUploading: true, quiet: true });
+    setItemStatus(i, 'ok');
+    resultsCache.push(r);
+    renderResults(resultsCache);
+    $('#uploading').classList.add('hidden');
+    toast('✅ 重试成功');
+  }catch(e){
+    setItemStatus(i, 'fail');
+    $('#uploading').classList.add('hidden');
+  }
+}
+
+async function uploadAll(){
+  uploading = true;
+  $('#fileInput').disabled = true;
+  $('#uploading').classList.remove('hidden');
+  setProgress(0, '');
+  const total = pendingFiles.length;
+  let ok = 0, fail = 0;
+  for (let i = 0; i < total; i++){
+    const f = pendingFiles[i];
+    setItemStatus(i, 'uploading');
+    try{
+      const r = await doUpload(f, MODES[mode].title + ' · ' + f.name, { index: i, total, keepUploading: true, quiet: true });
+      setItemStatus(i, 'ok');
+      ok++;
+      resultsCache.push(r);
+      renderResults(resultsCache);
+    }catch(e){
+      setItemStatus(i, 'fail');
+      fail++;
+    }
+  }
+  uploading = false;
+  $('#fileInput').disabled = false;
+  $('#uploading').classList.add('hidden');
+  if (ok) toast('✅ 成功 ' + ok + ' 个' + (fail ? '，失败 ' + fail + ' 个' : '') + '，二维码已生成');
+  else toast('❌ 上传失败，可点击列表中的重试', false);
+}
+
+/* 批量结果网格 */
+function renderResults(results){
+  const grid = $('#qrResultsGrid');
+  grid.innerHTML = '';
+  results.forEach((r, i) => {
+    const el = document.createElement('div');
+    el.className = 'qritem';
+    const img = document.createElement('img');
+    img.className = 'qri-img';
+    try { img.src = makeQR(r.url, 3, 2); } catch(e){}
+    img.alt = r.name || '二维码';
+    const name = document.createElement('div');
+    name.className = 'qri-name';
+    name.textContent = (i + 1) + '. ' + (r.name || r.url);
+    const btns = document.createElement('div');
+    btns.className = 'qri-btns';
+    const mk = (t, fn) => {
+      const b = document.createElement('button');
+      b.textContent = t;
+      b.onclick = e => { e.stopPropagation(); fn(); };
+      return b;
+    };
+    btns.appendChild(mk('下载', () => downloadQRUrl(r.url, r.name)));
+    btns.appendChild(mk('复制', () => copyUrl(r.url)));
+    btns.appendChild(mk('打开', () => window.open(r.url, '_blank')));
+    el.appendChild(img); el.appendChild(name); el.appendChild(btns);
+    el.onclick = () => {
+      const lb = MODES[mode].title + ' · ' + r.name;
+      lastResult = { url: r.url, label: lb, name: r.name, size: r.size, type: r.type };
+      showQR(r.url, lb);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    grid.appendChild(el);
+  });
+  $('#qrResultsTitle').textContent = '共生成 ' + results.length + ' 个二维码（点击可放大）';
+  $('#qrResults').classList.remove('hidden');
+}
+
+function downloadQRUrl(url, name){
+  try{
+    qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    const n = qr.getModuleCount();
+    const cell = Math.max(10, Math.floor(1024 / (n + 10)));
+    const a = document.createElement('a');
+    a.href = qr.createDataURL(cell, 5);
+    a.download = 'Toobey二维码-' + (name || 'qrcode').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40) + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('⬇️ 二维码已下载');
+  }catch(e){ toast('下载失败', false); }
+}
+
+async function copyUrl(url){
+  try{
+    await navigator.clipboard.writeText(url);
+    toast('📋 链接已复制');
+  }catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); toast('📋 链接已复制'); }
+    catch(e2){ toast('复制失败，请手动复制', false); }
+    ta.remove();
+  }
+}
+function fileIcon(f){
+  const t = f.type || '';
+  if (/^image\//.test(t)) return '🖼️';
+  if (/^audio\//.test(t)) return '🎵';
+  if (/^video\//.test(t)) return '🎬';
+  const n = f.name.toLowerCase();
+  if (/\.docx?$/.test(n)) return '📝';
+  if (/\.xlsx?$/.test(n)) return '📊';
+  if (/\.pptx?$/.test(n)) return '📽️';
+  if (/\.pdf$/.test(n)) return '📕';
+  if (/\.zip|\.rar|\.7z/.test(n)) return '🗜️';
+  return '📄';
+}
+function fmtSize(b){
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+function showPreview(f){
+  const box = $('#previewBox');
+  box.classList.remove('hidden');
+  box.innerHTML = '';
+  const t = f.type || '';
+  if (/^image\//.test(t)){
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f); box.appendChild(img);
+  } else if (/^audio\//.test(t)){
+    const a = document.createElement('audio'); a.controls = true; a.src = URL.createObjectURL(f); box.appendChild(a);
+  } else if (/^video\//.test(t)){
+    const v = document.createElement('video'); v.controls = true; v.preload = 'metadata'; v.src = URL.createObjectURL(f); box.appendChild(v);
+  } else {
+    const card = document.createElement('div'); card.className = 'filecard';
+    card.innerHTML = '<span class="fc-icon">' + fileIcon(f) + '</span><div><div class="fc-name"></div><div class="fc-meta"></div></div>';
+    card.querySelector('.fc-name').textContent = f.name;
+    card.querySelector('.fc-meta').textContent = fmtSize(f.size) + ' · 扫码后自动下载';
+    box.appendChild(card);
+  }
+}
+function setProgress(pct, extra){
+  const bar = $('#progressBar');
+  if (!bar) return;
+  const wrap = bar.parentElement;
+  if (pct < 0){
+    wrap.style.display = 'none';
+    $('#uploadText').textContent = '正在上传并生成二维码…';
+  } else {
+    wrap.style.display = 'block';
+    bar.style.width = pct + '%';
+    $('#uploadText').textContent = (extra || '') + '正在上传 ' + pct + '% …';
+  }
+}
+/* 通用上传: XMLHttpRequest (兼容微信内置浏览器/老内核, 带进度+超时+明确错误) */
+function doUpload(f, label, opts = {}){
+  return new Promise((resolve, reject) => {
+    const { index = 0, total = 1, keepUploading = false, quiet = false } = opts;
+    const prefix = total > 1 ? ('第 ' + (index + 1) + '/' + total + ' 个 · ') : '';
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('ttl', $('#ttlSel').value);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API_BASE + '/api/upload');
+    xhr.timeout = 180000; // 2分钟
+    $('#uploading').classList.remove('hidden');
+    setProgress(0, prefix);
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) setProgress(Math.max(1, Math.round(e.loaded / e.total * 100)), prefix);
+    };
+    xhr.onload = () => {
+      if (!keepUploading) $('#uploading').classList.add('hidden');
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch(e){}
+      if (xhr.status >= 200 && xhr.status < 300 && data && data.ok){
+        lastResult = { url: data.url, label, name: data.name, size: data.size, type: data.type };
+        showQR(data.url, label);
+        saveHistory({ mode, label, url: data.url, name: data.name, size: data.size, type: data.type });
+        if (!quiet) toast('✅ 上传成功，二维码已生成');
+        resolve(data);
+      } else {
+        const msg = (data && data.error) || ('HTTP ' + xhr.status);
+        if (!quiet) toast('上传失败：' + msg, false);
+        reject(new Error(msg));
+      }
+    };
+    xhr.onerror = () => {
+      if (!keepUploading) $('#uploading').classList.add('hidden');
+      if (!quiet) toast('上传失败：网络异常，请检查网络后重试', false);
+      reject(new Error('network'));
+    };
+    xhr.ontimeout = () => {
+      if (!keepUploading) $('#uploading').classList.add('hidden');
+      if (!quiet) toast('上传超时：文件较大或网络较慢，请重试', false);
+      reject(new Error('timeout'));
+    };
+    xhr.send(fd);
+  });
+}
+
+/* ---------- 二维码展示 ---------- */
+function showQR(text, label){
+  try{
+    $('#qrImg').src = makeQR(text, 10, 4);
+    $('#qrImg').hidden = false;
+    $('#qrPlaceholder').classList.add('hidden');
+    $('#qrLabel').textContent = label;
+    $('#qrUrl').textContent = text;
+    $('#qrMeta').classList.remove('hidden');
+    $('#dlBtn').disabled = false;
+    $('#copyBtn').disabled = false;
+    $('#openBtn').disabled = false;
+    $('#qrImg').onload = null;
+  }catch(e){
+    toast('生成失败：内容过长或无法编码', false);
+  }
+}
+$('#dlBtn').addEventListener('click', () => {
+  if (lastResult) downloadQRUrl(lastResult.url, lastResult.name);
+});
+$('#copyBtn').addEventListener('click', () => {
+  if (lastResult) copyUrl(lastResult.url);
+});
+$('#openBtn').addEventListener('click', () => {
+  if (!lastResult) return;
+  window.open(lastResult.url, '_blank');
+});
+
+/* ---------- 历史记录 ---------- */
+function saveHistory(entry){
+  historyList = historyList.filter(h => h.url !== entry.url);
+  historyList.unshift(entry);
+  if (historyList.length > 20) historyList.length = 20;
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(historyList)); } catch(e){}
+  renderHistory();
+}
+function fmtTime(ts){
+  const d = new Date(ts);
+  const p = n => (n < 10 ? '0' : '') + n;
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function renderHistory(){
+  const box = $('#history');
+  box.innerHTML = '';
+  if (!historyList.length){
+    box.innerHTML = '<div class="empty">还没有生成记录，选一个类型开始吧</div>';
+    return;
+  }
+  historyList.forEach((h, i) => {
+    const el = document.createElement('div');
+    el.className = 'hitem';
+    const qrImg = document.createElement('img');
+    try { qrImg.src = makeQR(h.url, 2, 2); } catch(e){}
+    const nameDiv = document.createElement('div'); nameDiv.className = 'hname'; nameDiv.textContent = h.name || h.label || h.url;
+    const timeDiv = document.createElement('div'); timeDiv.className = 'htime';
+    timeDiv.textContent = MODES[h.mode] ? MODES[h.mode].icon + ' ' + fmtTime(h.ts || Date.now()) : fmtTime(h.ts || Date.now());
+    const btns = document.createElement('div'); btns.className = 'hbtns';
+    const bOpen = document.createElement('button'); bOpen.textContent = '查看'; bOpen.onclick = (e) => { e.stopPropagation(); window.open(h.url, '_blank'); };
+    const bDl = document.createElement('button'); bDl.textContent = '下载码'; bDl.onclick = (e) => {
+      e.stopPropagation();
+      qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+      const qr = qrcode(0, 'M'); qr.addData(h.url); qr.make();
+      const a = document.createElement('a');
+      a.href = qr.createDataURL(10, 4); a.download = 'Toobey二维码-' + (h.name || 'qrcode').replace(/[\\/:*?"<>|]/g,'_').slice(0,40) + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+    const bDel = document.createElement('button'); bDel.textContent = '删除'; bDel.onclick = (e) => {
+      e.stopPropagation();
+      historyList.splice(i, 1);
+      try { localStorage.setItem(HIST_KEY, JSON.stringify(historyList)); } catch(e2){}
+      renderHistory();
+    };
+    btns.appendChild(bOpen); btns.appendChild(bDl); btns.appendChild(bDel);
+    el.appendChild(qrImg); el.appendChild(nameDiv); el.appendChild(timeDiv); el.appendChild(btns);
+    el.onclick = () => {
+      lastResult = { url: h.url, label: h.label || h.url, name: h.name, type: h.type };
+      showQR(h.url, h.label || h.url);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    box.appendChild(el);
+  });
+}
+$('#clearHist').addEventListener('click', () => {
+  historyList = [];
+  try { localStorage.removeItem(HIST_KEY); } catch(e){}
+  renderHistory();
+  toast('已清空记录');
+});
+
+/* ---------- 事件绑定 ---------- */
+function buildModes(){
+  const box = $('#modes');
+  Object.keys(MODES).forEach(m => {
+    const cfg = MODES[m];
+    const el = document.createElement('div');
+    el.className = 'mcard' + (m === mode ? ' active' : '');
+    el.dataset.mode = m;
+    el.innerHTML = '<div class="chk">✓</div><div class="mi">' + cfg.icon + '</div><div class="mt">' + cfg.title + '</div><div class="md">' + cfg.desc + '</div>';
+    el.onclick = () => setMode(m);
+    box.appendChild(el);
+  });
+}
+
+// 文件选择 / 拖拽 / 粘贴
+$('#dropzone').addEventListener('click', () => $('#fileInput').click());
+$('#fileInput').addEventListener('change', e => { pickFiles(e.target.files); e.target.value = ''; });
+['dragover','dragenter'].forEach(ev => $('#dropzone').addEventListener(ev, e => { e.preventDefault(); $('#dropzone').classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => $('#dropzone').addEventListener(ev, e => { e.preventDefault(); $('#dropzone').classList.remove('drag'); }));
+$('#dropzone').addEventListener('drop', e => {
+  const files = e.dataTransfer.files;
+  if (files && files.length) pickFiles(files);
+});
+window.addEventListener('paste', e => {
+  if (mode === 'url' || mode === 'text') return;
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  const fs = [];
+  for (const it of items){
+    if (it.kind === 'file'){
+      const f = it.getAsFile();
+      if (f) fs.push(f);
+    }
+  }
+  if (fs.length) pickFiles(fs);
+});
+$('#genUrlBtn').addEventListener('click', genFromUrl);
+$('#urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') genFromUrl(); });
+$('#genTextBtn').addEventListener('click', genFromText);
+$('#textInput').addEventListener('input', () => {
+  const n = $('#textInput').value.length;
+  $('#textCount').textContent = n + ' / 1万字';
+});
+
+/* 供自动化测试调用 */
+window.ToobeyQR = {
+  setMode, genFromUrl, genFromText, pickFiles, showQR, makeQR,
+  get lastResult(){ return lastResult; },
+  get history(){ return historyList; },
+  get pendingFiles(){ return pendingFiles; },
+  get results(){ return resultsCache; },
+};
+
+/* 启动 */
+buildModes();
+renderHistory();
+</script>
+</body>
+</html>
