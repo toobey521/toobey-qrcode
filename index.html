@@ -163,6 +163,14 @@ select{width:auto;cursor:pointer}
 footer{border-top:1px solid var(--border);margin-top:36px;padding-top:18px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.9}
 footer .svc{color:#94a6bf}
 
+/* 守法警示条 */
+.legal-warn{
+  max-width:1060px;margin:22px auto 0;padding:14px 20px;text-align:center;
+  font-size:14px;font-weight:700;line-height:1.7;letter-spacing:.3px;
+  color:#c02626;background:rgba(239,68,68,.07);
+  border:1.5px solid rgba(239,68,68,.35);border-radius:12px;
+}
+
 /* ---------- Toast ---------- */
 .toast{
   position:fixed;left:50%;bottom:30px;transform:translate(-50%,80px);opacity:0;z-index:999;
@@ -286,6 +294,8 @@ footer .svc{color:#94a6bf}
   <div>Toobey - 万能二维码生成器 v1.0</div>
   <div class="svc">存储服务：Cloudflare Pages · KV 全球 CDN ｜ 二维码本地生成 · 内容不经过第三方 ｜ 单文件上限 24MB · 支持一次多选批量上传</div>
 </footer>
+
+<div class="legal-warn">⚠️ 守法提示：本工具仅限用于合法正当用途，不得从事违法、低俗、侵害他人权益的活动，违者将依法追究相关法律责任。</div>
 
 </div>
 <div id="toast" class="toast"></div>
