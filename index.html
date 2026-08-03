@@ -264,7 +264,7 @@ footer .svc{color:#94a6bf}
         <div class="qr-url" id="qrUrl"></div>
       </div>
       <div class="actions">
-        <button id="dlBtn" class="btn primary" disabled>⬇️ 下载二维码 PNG</button>
+        <button id="dlBtn" class="btn primary" disabled>⬇️ 下载二维码海报</button>
         <button id="copyBtn" class="btn" disabled>📋 复制链接</button>
         <button id="openBtn" class="btn" disabled>↗️ 打开链接</button>
       </div>
@@ -362,7 +362,7 @@ function genFromUrl(){
   const url = normUrl(raw);
   if (!/^(https?|ftp):\/\/[^\s]+$/.test(url)) { toast('网址格式不正确，请检查后重试', false); return; }
   const label = '网址 · ' + url;
-  lastResult = { url, label, name: url, type: 'url' };
+  lastResult = { url, label, name: url, type: 'url', mode: 'url' };
   showQR(url, label);
   saveHistory({ mode:'url', label, url, name: url, type:'url' });
   toast('✅ 二维码已生成');
@@ -464,7 +464,7 @@ async function retryItem(i){
   try{
     const r = await doUpload(f, MODES[mode].title + ' · ' + f.name, { index: i, total: pendingFiles.length, keepUploading: true, quiet: true });
     setItemStatus(i, 'ok');
-    resultsCache.push(r);
+    resultsCache.push({ ...r, file: f, mode });
     renderResults(resultsCache);
     $('#uploading').classList.add('hidden');
     toast('✅ 重试成功');
@@ -488,7 +488,7 @@ async function uploadAll(){
       const r = await doUpload(f, MODES[mode].title + ' · ' + f.name, { index: i, total, keepUploading: true, quiet: true });
       setItemStatus(i, 'ok');
       ok++;
-      resultsCache.push(r);
+      resultsCache.push({ ...r, file: f, mode });
       renderResults(resultsCache);
     }catch(e){
       setItemStatus(i, 'fail');
@@ -524,13 +524,13 @@ function renderResults(results){
       b.onclick = e => { e.stopPropagation(); fn(); };
       return b;
     };
-    btns.appendChild(mk('下载', () => downloadQRUrl(r.url, r.name)));
+    btns.appendChild(mk('海报', () => downloadQRPoster({ url: r.url, name: r.name, type: r.type, mode: r.mode, size: r.size, file: r.file })));
     btns.appendChild(mk('复制', () => copyUrl(r.url)));
     btns.appendChild(mk('打开', () => window.open(r.url, '_blank')));
     el.appendChild(img); el.appendChild(name); el.appendChild(btns);
     el.onclick = () => {
       const lb = MODES[mode].title + ' · ' + r.name;
-      lastResult = { url: r.url, label: lb, name: r.name, size: r.size, type: r.type };
+      lastResult = { url: r.url, label: lb, name: r.name, size: r.size, type: r.type, mode: r.mode, file: r.file };
       showQR(r.url, lb);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -540,22 +540,183 @@ function renderResults(results){
   $('#qrResults').classList.remove('hidden');
 }
 
-function downloadQRUrl(url, name){
-  try{
-    qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
-    const qr = qrcode(0, 'M');
-    qr.addData(url);
-    qr.make();
-    const n = qr.getModuleCount();
-    const cell = Math.max(10, Math.floor(1024 / (n + 10)));
-    const a = document.createElement('a');
-    a.href = qr.createDataURL(cell, 5);
-    a.download = 'Toobey二维码-' + (name || 'qrcode').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40) + '.png';
-    document.body.appendChild(a); a.click(); a.remove();
-    toast('⬇️ 二维码已下载');
-  }catch(e){ toast('下载失败', false); }
+/* ---------- 二维码海报下载 (带内容标识, 让人一眼看出是什么) ---------- */
+function rr(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
+function typeInfo(type, mode, name){
+  const n = (name || '').toLowerCase();
+  if (mode === 'url') return { icon:'🔗', label:'网址' };
+  if (mode === 'text') return { icon:'📝', label:'文字' };
+  if (type && /^image\//.test(type)) return { icon:'🖼️', label:'图片' };
+  if (type && /^audio\//.test(type)) return { icon:'🎵', label:'音频' };
+  if (type && /^video\//.test(type)) return { icon:'🎬', label:'视频' };
+  if (/\.docx?$/.test(n)) return { icon:'📝', label:'文档' };
+  if (/\.xlsx?$/.test(n)) return { icon:'📊', label:'文档' };
+  if (/\.pptx?$/.test(n)) return { icon:'📽️', label:'文档' };
+  if (/\.pdf$/.test(n)) return { icon:'📕', label:'文档' };
+  if (/\.zip|\.rar|\.7z/.test(n)) return { icon:'🗜️', label:'文档' };
+  return { icon:'📄', label:'文件' };
+}
+function loadImage(src){
+  return new Promise(res => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = () => res(null);
+    im.src = src;
+  });
+}
+function fitRect(iw, ih, maxW, maxH){
+  const s = Math.min(maxW / iw, maxH / ih);
+  return { w: Math.round(iw * s), h: Math.round(ih * s) };
+}
+function captureVideoFrame(file){
+  return new Promise(res => {
+    let done = false;
+    const finish = v => { if (!done){ done = true; if (url) URL.revokeObjectURL(url); res(v); } };
+    let url = '';
+    try{
+      url = URL.createObjectURL(file);
+      const v = document.createElement('video');
+      v.muted = true; v.preload = 'metadata'; v.src = url;
+      v.onloadeddata = () => { try{ v.currentTime = Math.min(1, (v.duration || 2) / 2); }catch(e){} };
+      v.onseeked = () => {
+        try{
+          const tcv = document.createElement('canvas');
+          tcv.width = v.videoWidth || 640; tcv.height = v.videoHeight || 360;
+          const tctx = tcv.getContext('2d');
+          tctx.fillStyle = '#fff'; tctx.fillRect(0, 0, tcv.width, tcv.height);
+          tctx.drawImage(v, 0, 0, tcv.width, tcv.height);
+          finish(tcv.toDataURL('image/jpeg', 0.8));
+        }catch(e){ finish(null); }
+      };
+      v.onerror = () => finish(null);
+      setTimeout(() => finish(null), 3000); // 超时保护
+    }catch(e){ finish(null); }
+  });
+}
+async function loadThumbnail(type, file){
+  if (!file) return null;
+  try{
+    if (type && /^image\//.test(type)){
+      const url = URL.createObjectURL(file);
+      const im = await loadImage(url);
+      URL.revokeObjectURL(url);
+      if (!im) return null;
+      const tcv = document.createElement('canvas');
+      tcv.width = im.naturalWidth; tcv.height = im.naturalHeight;
+      const tctx = tcv.getContext('2d');
+      tctx.fillStyle = '#fff'; tctx.fillRect(0, 0, tcv.width, tcv.height); // 透明PNG转JPEG防黑底
+      tctx.drawImage(im, 0, 0);
+      return tcv.toDataURL('image/jpeg', 0.85);
+    }
+    if (type && /^video\//.test(type)) return await captureVideoFrame(file);
+  }catch(e){}
+  return null;
+}
+async function downloadQRPoster(opts){
+  const { url, name, type, mode, size, file } = opts || {};
+  const W = 1200, H = 900;
+  try{
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    const ti = typeInfo(type, mode, name);
+    const FONT = '"Microsoft YaHei","PingFang SC",sans-serif';
 
+    // 深蓝渐变背景 + 顶部光晕 + 装饰
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0d2247'); g.addColorStop(0.55, '#12386e'); g.addColorStop(1, '#0a1c3c');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W / 2, -80, 50, W / 2, -80, 540);
+    glow.addColorStop(0, 'rgba(56,189,248,.30)'); glow.addColorStop(1, 'rgba(56,189,248,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, 520);
+    ctx.fillStyle = 'rgba(56,189,248,.07)';
+    ctx.beginPath(); ctx.arc(W - 40, 110, 190, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(99,102,241,.09)';
+    ctx.beginPath(); ctx.arc(30, H - 50, 210, 0, 7); ctx.fill();
+
+    ctx.textAlign = 'center';
+    // 顶部: 分类徽章
+    ctx.font = '600 30px ' + FONT;
+    const badgeText = ti.icon + ' ' + ti.label;
+    const bw = ctx.measureText(badgeText).width + 56;
+    ctx.fillStyle = 'rgba(56,189,248,.18)';
+    rr(ctx, W / 2 - bw / 2, 48, bw, 52, 26); ctx.fill();
+    ctx.strokeStyle = 'rgba(56,189,248,.55)'; ctx.lineWidth = 2;
+    rr(ctx, W / 2 - bw / 2, 48, bw, 52, 26); ctx.stroke();
+    ctx.fillStyle = '#7dd3fc'; ctx.fillText(badgeText, W / 2, 82);
+    // 大标题 (文件名/网址/文字摘要)
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 46px ' + FONT;
+    const title = (name || '二维码内容').slice(0, 26);
+    ctx.fillText(title, W / 2, 144);
+
+    // 左卡: 内容信息
+    const lx = 70, ly = 185, lw = 400, lh = 545;
+    ctx.save();
+    rr(ctx, lx, ly, lw, lh, 26); ctx.fillStyle = 'rgba(255,255,255,.97)'; ctx.fill();
+    ctx.restore();
+    const thumb = await loadThumbnail(type, file);
+    if (thumb){
+      const im = await loadImage(thumb);
+      if (im && im.width > 0){
+        const f = fitRect(im.width, im.height, 340, 330);
+        const px0 = lx + (lw - f.w) / 2, py0 = ly + 28;
+        ctx.save();
+        rr(ctx, px0, py0, f.w, f.h, 18); ctx.clip(); ctx.drawImage(im, px0, py0, f.w, f.h); ctx.restore();
+      }
+    } else {
+      ctx.font = '118px serif';
+      ctx.fillText(ti.icon, lx + lw / 2, ly + 210);
+    }
+    ctx.fillStyle = '#1e3a5f'; ctx.font = '700 30px ' + FONT;
+    ctx.fillText(ti.icon + ' ' + ti.label, lx + lw / 2, ly + lh - 92);
+    ctx.fillStyle = '#64748b'; ctx.font = '26px ' + FONT;
+    const info = (size ? fmtSize(size) + ' · ' : '') + (mode === 'url' ? '网址链接' : (mode === 'text' ? '文字内容' : '扫码查看'));
+    ctx.fillText(info, lx + lw / 2, ly + lh - 44);
+
+    // 右卡: 二维码主体
+    const rx = 520, ry = 185, rw = 610, rh = 545;
+    ctx.save();
+    rr(ctx, rx, ry, rw, rh, 26); ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.restore();
+    qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+    const qr = qrcode(0, 'M'); qr.addData(url || ''); qr.make();
+    const qrCount = qr.getModuleCount();
+    const qrSize = 470;
+    const qrCell = Math.max(2, Math.floor(qrSize / (qrCount + 8)));
+    const qrim = await loadImage(qr.createDataURL(qrCell, 4));
+    const qx = rx + (rw - qrSize) / 2, qy = ry + 22;
+    if (qrim) ctx.drawImage(qrim, qx, qy, qrSize, qrSize);
+    ctx.fillStyle = '#334155'; ctx.font = '600 30px ' + FONT;
+    ctx.fillText('扫一扫 · 立即查看', rx + rw / 2, ry + rh - 18);
+
+    // 底部提示
+    ctx.fillStyle = '#cbe3ff'; ctx.font = '600 32px ' + FONT;
+    ctx.fillText('微信 / 支付宝 扫一扫，立即查看', W / 2, H - 96);
+    ctx.fillStyle = 'rgba(203,227,255,.65)'; ctx.font = '26px ' + FONT;
+    ctx.fillText('Toobey 万能二维码生成器 · 免费使用 · 内容云端长期保存', W / 2, H - 58);
+    // 完整链接地址
+    ctx.fillStyle = 'rgba(203,227,255,.5)'; ctx.font = '22px ' + FONT;
+    ctx.fillText(url || '', W / 2, H - 22);
+
+    const dataUrl = cv.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    const baseName = (name || 'qrcode').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40)
+      .replace(/\.(png|jpe?g|gif|webp|bmp|mp3|wav|m4a|aac|ogg|flac|mp4|webm|mov|mkv|avi|docx?|xlsx?|pptx?|pdf|zip|rar|7z|txt|md|html?|json)$/i, '');
+    a.download = 'Toobey二维码海报-' + baseName + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('⬇️ 二维码海报已下载');
+  }catch(e){
+    toast('海报生成失败，请重试', false);
+  }
+}
 async function copyUrl(url){
   try{
     await navigator.clipboard.writeText(url);
@@ -640,7 +801,7 @@ function doUpload(f, label, opts = {}){
       let data = null;
       try { data = JSON.parse(xhr.responseText); } catch(e){}
       if (xhr.status >= 200 && xhr.status < 300 && data && data.ok){
-        lastResult = { url: data.url, label, name: data.name, size: data.size, type: data.type };
+        lastResult = { url: data.url, label, name: data.name, size: data.size, type: data.type, mode, file: f };
         showQR(data.url, label);
         saveHistory({ mode, label, url: data.url, name: data.name, size: data.size, type: data.type });
         if (!quiet) toast('✅ 上传成功，二维码已生成');
@@ -683,7 +844,7 @@ function showQR(text, label){
   }
 }
 $('#dlBtn').addEventListener('click', () => {
-  if (lastResult) downloadQRUrl(lastResult.url, lastResult.name);
+  if (lastResult) downloadQRPoster(lastResult);
 });
 $('#copyBtn').addEventListener('click', () => {
   if (lastResult) copyUrl(lastResult.url);
@@ -723,13 +884,9 @@ function renderHistory(){
     timeDiv.textContent = MODES[h.mode] ? MODES[h.mode].icon + ' ' + fmtTime(h.ts || Date.now()) : fmtTime(h.ts || Date.now());
     const btns = document.createElement('div'); btns.className = 'hbtns';
     const bOpen = document.createElement('button'); bOpen.textContent = '查看'; bOpen.onclick = (e) => { e.stopPropagation(); window.open(h.url, '_blank'); };
-    const bDl = document.createElement('button'); bDl.textContent = '下载码'; bDl.onclick = (e) => {
+    const bDl = document.createElement('button'); bDl.textContent = '海报'; bDl.onclick = (e) => {
       e.stopPropagation();
-      qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
-      const qr = qrcode(0, 'M'); qr.addData(h.url); qr.make();
-      const a = document.createElement('a');
-      a.href = qr.createDataURL(10, 4); a.download = 'Toobey二维码-' + (h.name || 'qrcode').replace(/[\\/:*?"<>|]/g,'_').slice(0,40) + '.png';
-      document.body.appendChild(a); a.click(); a.remove();
+      downloadQRPoster({ url: h.url, name: h.name || h.label, type: h.type, mode: h.mode, size: h.size });
     };
     const bDel = document.createElement('button'); bDel.textContent = '删除'; bDel.onclick = (e) => {
       e.stopPropagation();
@@ -740,7 +897,7 @@ function renderHistory(){
     btns.appendChild(bOpen); btns.appendChild(bDl); btns.appendChild(bDel);
     el.appendChild(qrImg); el.appendChild(nameDiv); el.appendChild(timeDiv); el.appendChild(btns);
     el.onclick = () => {
-      lastResult = { url: h.url, label: h.label || h.url, name: h.name, type: h.type };
+      lastResult = { url: h.url, label: h.label || h.url, name: h.name, type: h.type, mode: h.mode };
       showQR(h.url, h.label || h.url);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
